@@ -27,8 +27,6 @@ class Network:
         self._create_weights()
         self._calc_lower_and_upper_bounds()
 
-        print(self._W[0])
-
     def _create_weights(self):
         """Create weights and biases for 1-layer neural network"""
 

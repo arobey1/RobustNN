@@ -54,7 +54,6 @@ class RobustProgram:
 
         self.M_sum = M_in + M_out + M_mid + M_entire
 
-    #### DONE ####
     def _create_P_matrix(self):
         """Creates CVX variable P which characterizes the QP for hyper-rectangle
         self.Gamma is a CVX (nx, nx) variable - parameterizes P matrix
@@ -72,7 +71,6 @@ class RobustProgram:
 
         return cvx.bmat([[P11, P12], [P21, P22]])
 
-    #### DONE ####
     def _create_S_matrix(self):
         """Creates CVX variable S which characterizes the safety specification set
         self.b is a CVX (1, 1) variable - b from safety set
@@ -88,7 +86,6 @@ class RobustProgram:
 
         return cvx.bmat([[S11, S12], [S21, S22]])
 
-    #### DONE ####
     def _create_T_matrix(self):
         """Create CVX variable T that paramterizes the ReLU QC
         Note that a np.einsum implementation would be faster, but cvxpy does
@@ -232,19 +229,10 @@ class RobustProgram:
         """
 
         objective = cvx.Minimize(self.b)
-
-        # add constraints to problem
         constraints = [self.M_sum << 0]
-        for i in range(self.nx):
-            for j in range(self.ny):
-                constraints.append(self.Gamma[i, j] >= 0)
-        constraints.append(self.nu >= 0)
-        constraints.append(self.eta >= 0)
 
-        # define and solve problem
         problem = cvx.Problem(objective, constraints)
         problem.solve(verbose=True)
-        # problem.solve()
 
         return np.squeeze(self.b.value)
 
