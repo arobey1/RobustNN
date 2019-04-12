@@ -19,7 +19,7 @@ DATA_PTS_PER_FEATURE = 50
 EPSILON = 0.1
 NUM_FEATURES = 2
 NUM_CLASSES = 2
-NUM_HIDDEN = 50
+NUM_HIDDEN = 100
 ACTIVATION = 'relu'
 ALPHA = 0
 BETA = 1
@@ -41,11 +41,11 @@ def main():
     # pass the input data through the network (as if the network were already trained)
     network_output = net.forward_prop(input_data)
 
-    l, u = output_rect(net, rect)
-    # l, u = parallel_output_rect(net, rect)
+    # l, u = output_rect(net, rect)
+    l, u = parallel_output_rect(net, rect)
 
     draw_rect(l, u)
-    plt.scatter(network_output[0, :], network_output[1, :])
+    plt.scatter(network_output[0,:], network_output[1,:])
     plt.show()
 
 
@@ -72,8 +72,15 @@ def create_rect_data(x_center):
 
     # create input data matrix, which will be
     X = np.zeros((NUM_FEATURES, DATA_PTS_PER_FEATURE ** 2))
-    X[0, :] = np.matlib.repmat(x1_interval, 1, DATA_PTS_PER_FEATURE).flatten()
-    X[1, :] = np.kron(x2_interval, np.ones((1, DATA_PTS_PER_FEATURE))).flatten()
+
+    xx, yy = np.meshgrid(x1_interval, x2_interval)
+    print(xx.shape)
+    print(yy.shape)
+
+    X[0,:] = xx.flatten()
+    X[1,:] = yy.flatten()
+    # X[0, :] = np.matlib.repmat(x1_interval, 1, DATA_PTS_PER_FEATURE).flatten()
+    # X[1, :] = np.kron(x2_interval, np.ones((1, DATA_PTS_PER_FEATURE))).flatten()
 
     return X, x_min, x_max
 
@@ -90,7 +97,7 @@ def parallel_output_rect(net, rect):
 
     types = ['lower', 'upper']
     outputs = Parallel(n_jobs=NUM_FEATURES * len(types))(
-        delayed(parallel_solve_SDP)(k, net, rect, b) for b in types for k in range(net.dim_out))
+        delayed(parallel_solve_SDP)(k, net, rect, b) for b in types for k in range(net.dim_output))
 
     lower_outputs = outputs[0:NUM_FEATURES]
     upper_outputs = outputs[NUM_FEATURES:]

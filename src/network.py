@@ -36,6 +36,7 @@ class Network:
         self._W, self._b = {}, {}
 
         if self._weight_type == 'rand':
+            # np.random.seed(5)
             self._W[0] = c * np.random.randn(self._dim_hidden_layer, self._dim_input)
             self._b[0] = c * np.random.randn(self._dim_hidden_layer, 1)
 
