@@ -1,7 +1,6 @@
 import functools
 import time
 
-
 def timing(method):
     def timed(*args, **kw):
         ts = time.time()
