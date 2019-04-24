@@ -10,7 +10,7 @@ from rectangle import Rectangle
 
 class RobustProgram:
 
-    def __init__(self, e_basis_vect, alpha, beta, net, rect, opt_lib='cvxpy'):
+    def __init__(self, e_basis_vect, alpha, beta, net, rect, solver='cvxopt'):
         """Constructor for robust SDP
 
         params:
@@ -18,7 +18,7 @@ class RobustProgram:
             alpha, beta: floats         - parameters for repeated nonlinearities
             net: Network instance       - neural network model
             rect: Rectangle instance    - upper and lower bounds on input
-            opt_lib: str                - optimizer: 'cvxpy' | 'mosek'
+            solver: str                 - optimizer: 'cvxopt' | 'mosek'
         """
 
         # network and rectangle instances
@@ -30,22 +30,15 @@ class RobustProgram:
         self.alpha, self.beta = alpha, beta
         self.e_basis_vect = e_basis_vect
         self.N = self.net.total_num_hidden_units()
-        self._opt_lib = opt_lib
 
-        if self._opt_lib == 'cvxpy':
-            self._init_cvxpy_solver()
-
-        # elif self._opt_lib == 'mosek':
-        #     mosek_model = self._init_mosek_solver()
-        #     P = self._create_P_matrix()
-        #     print(P)
-        #     quit()
-
-
-    def _init_cvxpy_solver(self):
-        """Initializes CVXPY solver for robust program
-        Initializes all CVXPY variables needed to formulate problem
-        """
+        if solver == 'cvxopt':
+            self._solver = cvx.CVXOPT
+        elif solver == 'mosek':
+            self._solver = cvx.MOSEK
+        else:
+            print('Valid solvers are: ', end="")
+            print(cvx.installed_solvers())
+            ValueError('Please use a valid solver.')
 
         # Gamma parameterizes P - QC for hyper-rectangle (cf. Prop. 1)
         self.Gamma = cvx.Variable(shape=(self.nx, self.nx), nonneg=True)
@@ -64,23 +57,6 @@ class RobustProgram:
         # D paramterizes M_entire
         self.D = cvx.Variable(shape=(self.nx + self.N, 1), nonneg=True)
 
-    # def _init_mosek_solver(self):
-    #     """Initializes MOSEK solver for robust program
-    #     Initializes all MOSEK variables needed to formulate problem
-    #     """
-    #
-    #     M = Model()
-    #
-    #     self.Gamma = M.variable('Gamma', [self.nx, self.nx], Domain.greaterThan(0.))
-    #     self.b = M.variable('b')
-    #     self.lam = M.variable('lambda', self.N)
-    #     self.zeta = M.variable('zeta', [int(0.5 * self.N * (self.N - 1)), 1], Domain.greaterThan(0.))
-    #     self.nu = M.variable('nu', self.N, Domain.greaterThan(0.))
-    #     self.eta = M.variable('eta', self.N, Domain.greaterThan(0.))
-    #     self.D = M.variable('D', self.nx + self.N, Domain.greaterThan(0.))
-    #
-    #     return M
-
     def _create_P_matrix(self):
         """Creates CVX variable P which characterizes the QP for hyper-rectangle
         self.Gamma is a CVX (nx, nx) variable - parameterizes P matrix
@@ -91,45 +67,12 @@ class RobustProgram:
 
         x_min, x_max = self.rect.x_min, self.rect.x_max
 
-        if self._opt_lib == 'cvxpy':
+        P11 = -(self.Gamma + self.Gamma.T)
+        P12 = cvx.matmul(self.Gamma, x_min) + cvx.matmul(self.Gamma.T, x_max)
+        P21 = cvx.matmul(x_min.T, self.Gamma.T) + cvx.matmul(x_max.T, self.Gamma)
+        P22 = - cvx.matmul(cvx.matmul(x_min.T, self.Gamma.T), x_max) - cvx.matmul(cvx.matmul(x_max.T, self.Gamma), x_min)
 
-            P11 = -(self.Gamma + self.Gamma.T)
-            P12 = cvx.matmul(self.Gamma, x_min) + cvx.matmul(self.Gamma.T, x_max)
-            P21 = cvx.matmul(x_min.T, self.Gamma.T) + cvx.matmul(x_max.T, self.Gamma)
-            P22 = - cvx.matmul(cvx.matmul(x_min.T, self.Gamma.T), x_max) - cvx.matmul(cvx.matmul(x_max.T, self.Gamma), x_min)
-
-            return cvx.bmat([[P11, P12], [P21, P22]])
-
-        # elif self._opt_lib == 'mosek':
-        #
-        #     P11 = Expr.mul(-1, Expr.add(self.Gamma, self.Gamma.transpose()))
-        #
-        #     P12 = Expr.add(
-        #         Expr.mul(self.Gamma, x_min.tolist()),
-        #         Expr.mul(self.Gamma.transpose(), x_max.tolist())
-        #     )
-        #     print(x_max)
-        #     print(P12.size())
-        #     quit()
-        #     P21 = Expr.add(
-        #         Expr.mul(x_min.T.tolist(), self.Gamma.transpose()),
-        #         Expr.mul(x_max.T.tolist(), self.Gamma.transpose())
-        #     )
-        #
-        #     P22_1 = Expr.mul(
-        #         Expr.mul(x_min.T, self.Gamma.transpose()), x_max
-        #     )
-        #
-        #     quit()
-        #
-        #     P22_2 = Expr.mul(
-        #         Expr.mul(x_max.T, self.Gamma), x_min
-        #     )
-        #     P22 = Expr.mul(-1, Expr.add(P22_1, P22_2))
-        #
-        #     return Expr.vstackExpr.hstack(
-        #         Expr.hstack([P11, P12]), Expr.hstack([P21, P22])
-        #     )
+        return cvx.bmat([[P11, P12], [P21, P22]])
 
     def _create_S_matrix(self):
         """Creates CVX variable S which characterizes the safety specification set
@@ -320,7 +263,7 @@ class RobustProgram:
         problem = cvx.Problem(objective, constraints)
 
         # solve problem
-        problem.solve(verbose=True, solver=cvx.SCS)
+        problem.solve(verbose=True, solver=self._solver)
 
         return np.squeeze(self.b.value)
 

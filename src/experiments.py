@@ -8,13 +8,13 @@ from robust_tools import test_robustness
 from network import Network
 
 
-TESTS = ['EPSILON']
+TESTS = ['RAND']
 
 def main():
 
     if 'RAND' in TESTS:
         in_dim, out_dim = 2, 2
-        hidden_sizes = [50, 100, 150, 200]
+        hidden_sizes = [5, 10, 15, 20]
         epsilon = 0.1
 
         results = random_tests(in_dim, out_dim, hidden_sizes, epsilon)
@@ -29,7 +29,7 @@ def main():
         plot_test_resultls(results, epsilons, plot_type='epsilon')
 
 
-def random_tests(in_dim, out_dim, hidden_sizes, epsilon):
+def random_tests(in_dim, out_dim, hidden_sizes, epsilon, solver='cvxopt'):
     """Test networks with varying number of hidden layers and random weights
 
     params:
@@ -45,8 +45,9 @@ def random_tests(in_dim, out_dim, hidden_sizes, epsilon):
 
     for h in hidden_sizes:
         net = Network([in_dim, h, out_dim], 'relu', 'rand')
-        lower, upper, out_data = test_robustness(net, epsilon, parallel=True)
-
+        lower, upper, out_data = test_robustness(net, epsilon, solver=solver,
+                                                    parallel=True)
+        net.save_params('weights')
         results[h] = {
             'lower': lower,
             'upper': upper,
