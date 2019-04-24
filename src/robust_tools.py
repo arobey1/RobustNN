@@ -17,11 +17,12 @@ import matplotlib.pyplot as plt
 DATA_PTS_PER_FEATURE = 50
 ALPHA, BETA = 0, 1
 
-def test_robustness(net, epsilon, parallel=True):
+def test_robustness(net, epsilon, solver='cvxopt', parallel=True):
     """Test robustness of neural network
 
     params:
         net: Network instance       - neural network model
+        epsilon: float              - robustness parameter
 
     returns:
         l, u: lists of floats - result points from solving SDPs
@@ -36,9 +37,9 @@ def test_robustness(net, epsilon, parallel=True):
     network_output = net.forward_prop(input_data)
 
     if parallel:
-        l, u = parallel_output_rect(net, opt_lib='cvxpy')
+        l, u = parallel_output_rect(net, solver=solver)
     else:
-        l, u = output_rect(net, opt_lib='cvxpy')
+        l, u = output_rect(net, solver=solver)
 
     return l, u, network_output
 
@@ -76,7 +77,7 @@ def create_rect_data(epsilon, net):
     return X, x_min, x_max
 
 @timing
-def parallel_output_rect(net, opt_lib='cvxpy'):
+def parallel_output_rect(net, solver='cvxopt'):
     """Solves SDPs by parallelizing over the number of features and ['upper', 'lower']
 
     params:
@@ -88,7 +89,7 @@ def parallel_output_rect(net, opt_lib='cvxpy'):
 
     types = ['lower', 'upper']
     outputs = Parallel(n_jobs=net.dim_input * len(types))(
-        delayed(parallel_solve_SDP)(k, net, b, opt_lib=opt_lib) for b in types for k in range(net.dim_output))
+        delayed(parallel_solve_SDP)(k, net, b, solver=solver) for b in types for k in range(net.dim_output))
 
     lower_outputs = outputs[0:net.dim_input]
     upper_outputs = outputs[net.dim_input:]
@@ -96,7 +97,7 @@ def parallel_output_rect(net, opt_lib='cvxpy'):
     return lower_outputs, upper_outputs
 
 
-def parallel_solve_SDP(idx, net, bound_type, opt_lib='cvxpy'):
+def parallel_solve_SDP(idx, net, bound_type, solver='cvxopt'):
     """Called by parallel_output_rect to solve SDP for upper/lower bounds
 
     params:
@@ -109,17 +110,17 @@ def parallel_solve_SDP(idx, net, bound_type, opt_lib='cvxpy'):
     c = II[:, idx].reshape((net.dim_output, 1))
 
     if bound_type == 'upper':
-        opt = solve_SDP(c, net, verbose=True, opt_lib=opt_lib)
+        opt = solve_SDP(c, net, verbose=True, solver=solver)
 
     elif bound_type == 'lower':
-        opt = -1. * solve_SDP(-c, net, verbose=True, opt_lib=opt_lib)
+        opt = -1. * solve_SDP(-c, net, verbose=True, solver=solver)
 
     return opt
 
-def solve_SDP(c, net, verbose=True, opt_lib='cvxpy'):
+def solve_SDP(c, net, verbose=True, solver='cvxopt'):
     """Create and solve SDP to determine support line"""
 
-    sdp = RobustProgram(c, ALPHA, BETA, net, net.rect, opt_lib=opt_lib)
+    sdp = RobustProgram(c, ALPHA, BETA, net, net.rect, solver=solver)
     solution = sdp.solve()
 
     if verbose:
@@ -132,7 +133,7 @@ def solve_SDP(c, net, verbose=True, opt_lib='cvxpy'):
 
 
 @timing
-def output_rect(net, opt_lib='cvxpy'):
+def output_rect(net, solver='cvxopt'):
     """Find upper and lower bounding lines
     params:
         net: Network instance       - neural network
@@ -150,8 +151,8 @@ def output_rect(net, opt_lib='cvxpy'):
         # get the k-th standard basis vector e_k = [0 ... 1 ... 0]^T
         e_k = I_ny[:, k].reshape((net.dim_output, 1))
 
-        upper_opt = solve_SDP(e_k, net, verbose=True, opt_lib=opt_lib)
-        lower_opt = -1. * solve_SDP(-e_k, net, verbose=True, opt_lib=opt_lib)
+        upper_opt = solve_SDP(e_k, net, verbose=True, solver=solver)
+        lower_opt = -1. * solve_SDP(-e_k, net, verbose=True, solver=solver)
 
         upper_outputs.append(upper_opt)
         lower_outputs.append(lower_opt)
