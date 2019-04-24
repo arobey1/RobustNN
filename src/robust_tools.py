@@ -2,11 +2,8 @@ from utils import timing
 from robust_program import RobustProgram
 from rectangle import Rectangle
 from network import Network
-from time import time
 from joblib import Parallel, delayed
-from scipy.linalg import block_diag
 import numpy as np
-import numpy.matlib
 import cvxpy as cvx
 
 import matplotlib
